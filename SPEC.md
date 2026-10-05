@@ -32,6 +32,8 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 
 - Tablas con `ENGINE=InnoDB` y `utf8mb4` declarados explícitamente.
 - El usuario de la aplicación solo tiene `SELECT, INSERT, UPDATE` sobre la base `reservas`.
+- Scripts: `database/schema.sql` (crea o recrea las tablas y el estado inicial; **borra los datos**) y `database/permissions.sql` (permisos mínimos). Ambos se ejecutan como root y se aplican automáticamente al crear el volumen de MySQL por primera vez.
+- Las pruebas automatizadas reinician **solo los datos** usando una conexión administrativa (root); la aplicación nunca recibe permiso de borrado.
 
 ## 4. Contrato de la API
 

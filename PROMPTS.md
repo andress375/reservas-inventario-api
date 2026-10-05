@@ -11,7 +11,7 @@ Las respuestas de la IA no se copian completas; solo se resume qué se hizo con 
 | # | Propósito | Estado |
 |---|---|---|
 | P1 | Contexto y análisis (sin código) | ✅ |
-| P2 | Base de datos | ⏳ |
+| P2 | Base de datos | ✅ |
 | P3 | Lógica de reserva + endpoint | ⏳ |
 | P4 | Pruebas (incluida concurrencia) | ⏳ |
 | P5 | Auditoría crítica (Punto 9) | ⏳ |
@@ -68,10 +68,32 @@ Criterio de aceptación de tu respuesta:
 ## P2 · Base de datos
 
 ```text
-(pendiente)
+Continuamos con las reglas de la sesión definidas en P1. El contrato es SPEC.md (secciones 3 y 5).
+
+Tarea:
+Crea el script de base de datos en database/schema.sql. Te autorizo a crear solo ese archivo.
+
+Requisitos del script:
+- Tablas products y reservations exactamente como define SPEC.md sección 3 (tipos, restricciones, InnoDB y utf8mb4).
+- Producto de ejemplo: id 1, "Producto Demo", stock 10.
+- Debe poder ejecutarse varias veces y dejar siempre la base en su estado inicial.
+- No debe contener contraseñas ni crear usuarios: el usuario reservas_app ya lo crea Docker con la clave del .env.
+
+Además, sin crear más archivos:
+1. Propón cómo ejecutar el script en Docker con un solo comando. Si requiere cambiar docker-compose.yml, muéstrame solo las líneas que cambian y espera mi aprobación.
+2. Propón cómo dejar al usuario reservas_app con los permisos mínimos de SPEC.md, considerando que las pruebas automatizadas solo reiniciarán los datos (no la estructura). Dame opciones con su consecuencia.
+3. Dame las consultas para comprobar que MySQL rechaza: stock negativo, quantity 0, request_id duplicado y product_id inexistente, indicando el error esperado en cada caso.
+
+Formato: el SQL completo y luego los puntos 1 a 3. Máximo 1 página fuera del SQL.
 ```
 
-**Qué hice con la respuesta:** (pendiente)
+**Qué hice con la respuesta:**
+
+- Acepté `database/schema.sql`. Lo ejecuté en MySQL 8.4 (Docker) y comprobé el estado inicial (Producto Demo, stock 10).
+- Acepté montar `./database` en `/docker-entrypoint-initdb.d` (cambio de una línea en `docker-compose.yml`): el script se aplica solo al crear el volumen.
+- Permisos: elegí la opción b (app con `SELECT, INSERT, UPDATE`; las pruebas reinician datos con una conexión administrativa). Se creó `database/permissions.sql`.
+- Validé que MySQL rechaza stock negativo (3819), quantity 0 (3819), request_id duplicado (1062) y producto inexistente (1452), y que la app no puede borrar (1142).
+- **Error de la IA detectado:** los comandos propuestos usaban comillas dobles dentro de `sh -c`; PowerShell 5.1 las elimina al llamar a Docker y MySQL recibió una consulta incompleta (error 1064). Se corrigió usando solo comillas simples.
 
 ---
 

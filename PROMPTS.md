@@ -14,7 +14,7 @@ Las respuestas de la IA no se copian completas; solo se resume qué se hizo con 
 | P2 | Base de datos | ✅ |
 | P3 | Lógica de reserva + endpoint | ✅ |
 | P4 | Pruebas (incluida concurrencia) | ✅ |
-| P5 | Auditoría crítica (Punto 9) | ⏳ |
+| P5 | Auditoría crítica (Punto 9) | ✅ |
 | P6 | Correcciones precisas | ⏳ |
 
 ---
@@ -178,14 +178,59 @@ Formato:
 ## P5 · Auditoría crítica
 
 ```text
-(pendiente)
+Continuamos con las reglas de la sesión. Cambia de rol: ahora eres un auditor técnico independiente. Tu objetivo es encontrar problemas, no defender la solución.
+
+Contexto: SPEC.md es el contrato. Revisa src/, public/index.php, database/, docker-compose.yml y tests/.
+
+Tarea:
+Audita la solución buscando problemas de:
+1. Concurrencia.
+2. Transacciones.
+3. Idempotencia.
+4. Integridad de datos.
+5. Seguridad.
+
+Restricciones:
+- No modifiques ni crees archivos: solo análisis.
+- Cada hallazgo debe citar archivo y línea, o el comando con que se reproduce. Si no puedes demostrarlo, márcalo como "Hipótesis".
+- Máximo 10 hallazgos, ordenados por severidad. Nada de recomendaciones de estilo.
+
+Formato: una tabla con #, área, hallazgo, evidencia, severidad (alta/media/baja), recomendación y costo de aplicarla (bajo/medio/alto). Al final, en máximo 3 líneas: lo que consideras correcto y no necesita cambios.
 ```
 
 ### Decisiones sobre las recomendaciones de la IA
 
-**Recomendación 1:** (pendiente)
-Decisión: Aceptada / Rechazada
-Motivo: ...
+**Recomendación 1 (Idempotencia / Integridad):** La validación de `request_id` acepta un salto de línea final (`$` en la expresión regular): `"REQ-NL"` y `"REQ-NL\n"` crean dos reservas. Reproducido.
+Decisión: Aceptada
+Motivo: `request_id` es la llave de idempotencia (Regla 2): si dos textos que el cliente considera iguales generan llaves distintas, un reintento descuenta stock dos veces. La validación debe aceptar exactamente el formato definido en SPEC.md. El hallazgo se reprodujo y la corrección cuesta un carácter (`\z`).
+
+**Recomendación 2 (Seguridad):** Los puertos 3307 (MySQL) y 8080 (API) están publicados en todas las interfaces de red.
+Decisión: Aceptada
+Motivo: Principio de mínima exposición: la base de datos y la API solo necesitan ser accesibles desde este equipo. Publicarlas en `127.0.0.1` elimina el acceso desde la red local sin afectar el funcionamiento ni las pruebas.
+
+**Recomendación 3 (Seguridad):** El contenedor `app` recibe todo el `.env`, incluida la clave de root.
+Decisión: Aceptada
+Motivo: Principio de mínimo privilegio: la API ya usa un usuario sin permiso de borrado, pero tener la clave de root en su entorno anula esa protección si el proceso se compromete. Esa clave solo la necesitan las pruebas, para preparar datos.
+
+**Recomendación 4 (Seguridad / Robustez):** El servidor integrado de PHP no está diseñado para producción.
+Decisión: Rechazada
+Motivo: La prueba pide una API local y una solución mínima (R14). Cambiarlo por Nginx + PHP-FPM no altera la corrección del sistema: las garantías de stock, idempotencia y concurrencia viven en MySQL (descuento atómico, `CHECK`, `UNIQUE`), no en el servidor web. Su costo es alto; queda documentado en el README como mejora para producción.
+
+**Recomendación 5 (Concurrencia / Transacciones):** Un deadlock (1213) o un tiempo de espera de bloqueo agotado (1205) responden 500 sin reintento. Hipótesis no reproducida.
+Decisión: Rechazada
+Motivo: Un deadlock requiere que dos transacciones esperen recursos en orden cruzado. En este flujo todas bloquean primero la fila del producto y después insertan la reserva (orden fijo `UPDATE` → `INSERT`), lo que evita ese ciclo. No se reprodujo, y la prueba de concurrencia con barrera tampoco lo produjo. Agregar reintentos sería código sin un caso demostrado; si ocurriera un caso extremo, el sistema responde 500 sin corromper datos porque la transacción se revierte.
+
+**Recomendación 6 (Seguridad):** La cabecera `X-Powered-By` revela la versión exacta de PHP. Reproducido.
+Decisión: Aceptada
+Motivo: Reducir la exposición de información (fingerprinting): conocer la versión exacta permite buscar vulnerabilidades publicadas para esa versión. Ocultarla no corrige vulnerabilidades por sí sola, pero suma una capa de defensa en profundidad a cambio de una línea de configuración.
+
+**Recomendación 7 (Seguridad):** El healthcheck pasa la clave de root como argumento (`-p...`), visible en la lista de procesos del contenedor `db`.
+Decisión: Aceptada
+Motivo: Los secretos no deben pasarse como argumentos de línea de comandos: cualquier proceso del contenedor puede leerlos en la lista de procesos. Pasarla por la variable `MYSQL_PWD` evita esa exposición sin cambiar el funcionamiento del healthcheck.
+
+**Recomendación 8 (Integridad / Robustez):** No se valida el `Content-Type` ni el tamaño del cuerpo de la solicitud.
+Decisión: Aceptada
+Motivo: Validación en el borde y robustez: el contrato de la API es JSON, así que rechazar otros tipos con 415 y limitar el tamaño del cuerpo evita procesar entradas inesperadas y protege contra solicitudes enormes que consumen memoria (denegación de servicio). Implica agregar el 415 al contrato de SPEC.md.
 
 ---
 

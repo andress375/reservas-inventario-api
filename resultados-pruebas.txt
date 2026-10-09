@@ -1,0 +1,10 @@
+Reservation Api
+ [x] Reserva correcta descuenta stock
+ [x] Stock insuficiente se rechaza sin modificar datos
+ [x] Mismo request id devuelve la misma reserva sin descontar de nuevo
+ [x] Concurrencia solo una reserva confirmada con stock uno
+ [x] Concurrencia mismo request id crea una sola reserva
+
+Smoke
+ [x] Php se conecta a my sql 84
+

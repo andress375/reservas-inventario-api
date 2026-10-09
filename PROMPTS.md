@@ -13,7 +13,7 @@ Las respuestas de la IA no se copian completas; solo se resume qué se hizo con 
 | P1 | Contexto y análisis (sin código) | ✅ |
 | P2 | Base de datos | ✅ |
 | P3 | Lógica de reserva + endpoint | ✅ |
-| P4 | Pruebas (incluida concurrencia) | ⏳ |
+| P4 | Pruebas (incluida concurrencia) | ✅ |
 | P5 | Auditoría crítica (Punto 9) | ⏳ |
 | P6 | Correcciones precisas | ⏳ |
 
@@ -140,10 +140,38 @@ Máximo 1 página de explicación fuera del código.
 ## P4 · Pruebas
 
 ```text
-(pendiente)
+Continuamos con las reglas de la sesión. El contrato es SPEC.md (secciones 4 y 5). El código está en src/ y public/index.php.
+
+Tarea:
+Implementa las pruebas automatizadas con PHPUnit que exige la prueba técnica:
+1. Reserva correcta.
+2. Stock insuficiente.
+3. Idempotencia de request_id: el mismo pedido devuelve la misma reserva sin cambiar el stock; el mismo request_id con otros datos devuelve 409.
+4. Concurrencia: stock 1 y dos solicitudes simultáneas de quantity 1 → exactamente una 201, una 409 y stock final 0.
+
+Te autorizo a crear solo archivos dentro de tests/. Si necesitas cambiar phpunit.xml, composer.json o docker-compose.yml, muéstrame solo las líneas que cambian y espera mi aprobación.
+
+Requisitos:
+- Las pruebas llaman a la API real por HTTP (http://127.0.0.1:8080 desde el contenedor app) para validar el flujo completo.
+- Antes de cada prueba, reinicia solo los datos con una conexión administrativa (root), como define SPEC.md sección 3. La aplicación no recibe permisos nuevos.
+- La prueba de concurrencia debe enviar las solicitudes realmente en paralelo y repetirse varias veces, para que un resultado correcto no sea casualidad.
+- Pocas pruebas relevantes; nada trivial.
+
+Antes del código, explica en máximo 5 líneas: cómo garantiza la prueba de concurrencia que las solicitudes se solapan de verdad, y qué haría fallar la prueba si el código tuviera el bug de sobreventa.
+
+Formato:
+1. Esa explicación.
+2. El código.
+3. El comando para ejecutar las pruebas y el comando para guardar el resultado en un archivo (es un entregable).
 ```
 
-**Qué hice con la respuesta:** (pendiente)
+**Qué hice con la respuesta:**
+
+- Acepté `tests/ReservationApiTest.php`: 5 pruebas por HTTP contra la API real (reserva correcta, stock insuficiente, idempotencia, concurrencia con stock 1 e idempotencia bajo concurrencia).
+- La prueba de concurrencia usa una **barrera**: bloquea la fila del producto, espera a que todas las solicitudes estén detenidas dentro de MySQL y solo entonces las libera. Así el solapamiento está garantizado y no depende de la suerte.
+- **Validación de la prueba (mutación):** con el bug "consultar y luego descontar" introducido a propósito, la prueba crítica falla en la primera ronda; además, la restricción `CHECK (stock >= 0)` impidió que el stock quedara negativo.
+- **Errores de la IA detectados en el camino:** la primera versión no garantizaba el solapamiento; la barrera inicial leía `information_schema.innodb_trx`, que usa caché y podía abrirse antes de tiempo (se cambió a `performance_schema.data_lock_waits`); y el envío simultáneo podía hacer que un mismo worker atendiera dos solicitudes en fila (ahora se envían una a una).
+- Ejecuté la suite en mi entorno (PHP 8.3, MySQL 8.4, PHPUnit 12.5): 6 de 6 pruebas en verde. Resultado guardado en `resultados-pruebas.txt`.
 
 ---
 

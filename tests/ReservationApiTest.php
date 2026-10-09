@@ -88,6 +88,42 @@ final class ReservationApiTest extends TestCase
     }
 
     /**
+     * Hallazgo 1 de P5: un salto de línea al final del request_id no debe crear una llave distinta.
+     */
+    public function testRequestIdConSaltoDeLineaFinalSeRechaza(): void
+    {
+        [$status, $body] = $this->post(['request_id' => "T-NL-1\n", 'product_id' => self::PRODUCT_ID, 'quantity' => 1]);
+
+        $this->assertSame(422, $status);
+        $this->assertArrayHasKey('request_id', $body['error']['fields']);
+        $this->assertSame(10, $this->stock());
+        $this->assertSame(0, $this->reservationCount());
+    }
+
+    /**
+     * Hallazgos 6 y 8 de P5: validación en el borde y no revelar la versión de PHP.
+     */
+    public function testSoloAceptaJsonDeTamanoAcotadoSinRevelarVersion(): void
+    {
+        $valid = json_encode(['request_id' => 'T-EDGE-1', 'product_id' => self::PRODUCT_ID, 'quantity' => 1], JSON_THROW_ON_ERROR);
+
+        [$status, $body] = $this->send($valid, 'text/plain');
+        $this->assertSame(415, $status);
+        $this->assertSame('UNSUPPORTED_MEDIA_TYPE', json_decode($body, true)['error']['code']);
+
+        $tooLarge = json_encode(['request_id' => 'T-EDGE-2', 'product_id' => self::PRODUCT_ID, 'quantity' => 1, 'relleno' => str_repeat('x', 2000)], JSON_THROW_ON_ERROR);
+        [$status, $body] = $this->send($tooLarge, 'application/json');
+        $this->assertSame(413, $status);
+        $this->assertSame('PAYLOAD_TOO_LARGE', json_decode($body, true)['error']['code']);
+
+        $this->assertSame(10, $this->stock(), 'Las solicitudes rechazadas no deben modificar datos.');
+        $this->assertSame(0, $this->reservationCount());
+
+        [, , $headers] = $this->send($valid, 'application/json');
+        $this->assertStringNotContainsStringIgnoringCase('X-Powered-By', $headers);
+    }
+
+    /**
      * Prueba crítica (Punto 7): stock 1, dos solicitudes distintas y simultáneas de 1 unidad.
      * Usa una barrera (ver postConcurrently) que garantiza que ambas solicitudes están dentro
      * de MySQL al mismo tiempo; si el código tuviera el bug de sobreventa, ambas confirmarían.
@@ -155,14 +191,35 @@ final class ReservationApiTest extends TestCase
      */
     private function post(array $payload): array
     {
-        $handle = $this->createHandle($payload);
+        [$status, $body] = $this->send(json_encode($payload, JSON_THROW_ON_ERROR), 'application/json');
+
+        return [$status, json_decode($body, true, 512, JSON_THROW_ON_ERROR)];
+    }
+
+    /**
+     * Envía un cuerpo crudo con el Content-Type indicado.
+     *
+     * @return array{0: int, 1: string, 2: string} Código HTTP, cuerpo y cabeceras.
+     */
+    private function send(string $rawBody, string $contentType): array
+    {
+        $handle = curl_init((getenv('API_URL') ?: 'http://127.0.0.1:8080') . '/reservations');
+        curl_setopt_array($handle, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $rawBody,
+            CURLOPT_HTTPHEADER => ['Content-Type: ' . $contentType],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => true,
+            CURLOPT_TIMEOUT => 10,
+        ]);
         $raw = curl_exec($handle);
         $status = curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        $headerSize = curl_getinfo($handle, CURLINFO_HEADER_SIZE);
         curl_close($handle);
 
         $this->assertIsString($raw, 'La API no respondió. ¿Está corriendo el contenedor app?');
 
-        return [$status, json_decode($raw, true, 512, JSON_THROW_ON_ERROR)];
+        return [$status, substr($raw, $headerSize), substr($raw, 0, $headerSize)];
     }
 
     /**

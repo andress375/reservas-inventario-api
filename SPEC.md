@@ -15,6 +15,9 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 - Composer y PHPUnit dentro del contenedor.
 - **PHP puro, sin framework.** Solo PDO. Un único punto de entrada: `public/index.php`.
 - Servidor integrado de PHP con `PHP_CLI_SERVER_WORKERS` (4) para atender solicitudes en paralelo. La API queda en `http://localhost:8080`.
+- Los puertos de la API (8080) y de MySQL (3307) se publican solo en `127.0.0.1`: no son accesibles desde la red local.
+- `expose_php = Off`: las respuestas no revelan la versión de PHP.
+- Las pruebas corren en un servicio aparte (`docker compose run --rm tests`).
 
 ## 3. Modelo de datos
 
@@ -34,6 +37,7 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 - El usuario de la aplicación solo tiene `SELECT, INSERT, UPDATE` sobre la base `reservas`.
 - Scripts: `database/schema.sql` (crea o recrea las tablas y el estado inicial; **borra los datos**) y `database/permissions.sql` (permisos mínimos). Ambos se ejecutan como root y se aplican automáticamente al crear el volumen de MySQL por primera vez.
 - Las pruebas automatizadas reinician **solo los datos** usando una conexión administrativa (root); la aplicación nunca recibe permiso de borrado.
+- La clave de root solo llega al servicio `tests`; el contenedor de la API recibe únicamente las credenciales de `reservas_app`.
 
 ## 4. Contrato de la API
 
@@ -45,7 +49,8 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 
 Validación de entrada:
 
-- `request_id`: texto de 1 a 64 caracteres, solo letras, números, `-` y `_`.
+- `Content-Type` debe ser `application/json` y el cuerpo no puede superar 1024 bytes.
+- `request_id`: texto de 1 a 64 caracteres, solo letras, números, `-` y `_`, sin ningún carácter adicional (tampoco un salto de línea final).
 - `product_id` y `quantity`: enteros JSON (no se aceptan `"3"`, `3.5` ni `true`). `product_id > 0` y `quantity > 0` (si no, 422). Sin tope de cantidad.
 
 | Caso | HTTP | Cuerpo |
@@ -53,6 +58,8 @@ Validación de entrada:
 | Reserva nueva | 201 | `{"reservation_id": 15, "status": "confirmed", "remaining_stock": 7}` |
 | Reintento idempotente (mismos datos) | 200 | El mismo cuerpo de la reserva original |
 | Mismo `request_id`, datos distintos | 409 | `IDEMPOTENCY_CONFLICT` |
+| `Content-Type` distinto de JSON | 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| Cuerpo mayor a 1024 bytes | 413 | `PAYLOAD_TOO_LARGE` |
 | JSON malformado | 400 | `INVALID_JSON` |
 | Campo faltante o tipo inválido | 422 | `VALIDATION_ERROR` + detalle por campo |
 | `quantity <= 0` | 422 | `VALIDATION_ERROR` |
@@ -74,7 +81,7 @@ Formato de error: `{"error": {"code": "...", "message": "...", "fields": {...}}}
 
 ### Flujo de una reserva
 
-1. Validar la entrada (400 / 422).
+1. Validar la entrada (415 / 413 / 400 / 422).
 2. Buscar la reserva por `request_id`. Si existe: mismos datos → 200 con la respuesta guardada; datos distintos → 409.
 3. `BEGIN`.
 4. `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`.

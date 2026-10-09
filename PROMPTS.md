@@ -15,7 +15,7 @@ Las respuestas de la IA no se copian completas; solo se resume qué se hizo con 
 | P3 | Lógica de reserva + endpoint | ✅ |
 | P4 | Pruebas (incluida concurrencia) | ✅ |
 | P5 | Auditoría crítica (Punto 9) | ✅ |
-| P6 | Correcciones precisas | ⏳ |
+| P6 | Correcciones precisas | ✅ |
 
 ---
 
@@ -237,7 +237,21 @@ Motivo: Validación en el borde y robustez: el contrato de la API es JSON, así 
 ## P6 · Correcciones precisas
 
 ```text
-(pendiente)
+Continuamos con las reglas de la sesión. Aplica solo las recomendaciones de P5 marcadas como "Aceptada" en PROMPTS.md (1, 2, 3, 6, 7 y 8). No cambies nada más.
+
+Te autorizo a modificar: src/, public/index.php, docker-compose.yml, docker/php/Dockerfile, tests/ y SPEC.md.
+
+Para cada recomendación:
+- Muéstrame solo las líneas que cambian (diff), indicando el archivo.
+- Si cambia el contrato de la API o la forma de ejecutar el proyecto, actualiza SPEC.md y dímelo.
+- Agrega una prueba automatizada cuando el cambio sea verificable así (como mínimo para la 1 y la 8).
+
+Al final: los comandos para reconstruir el entorno y ejecutar todas las pruebas, y el resultado esperado.
 ```
 
-**Qué hice con la respuesta:** (pendiente)
+**Qué hice con la respuesta:**
+
+- Acepté los cambios, mostrados como diff, de las 6 recomendaciones aceptadas en P5; las rechazadas (4 y 5) no se tocaron.
+- SPEC.md se actualizó porque cambió el contrato: nuevos códigos 415 y 413, `request_id` sin caracteres adicionales, puertos solo en `127.0.0.1` y pruebas en un servicio aparte.
+- Dos pruebas nuevas cubren las recomendaciones 1, 6 y 8. Ambas **fallan con el código anterior** y pasan con el corregido, lo que demuestra que detectan el problema.
+- Verificación en mi entorno: puertos `127.0.0.1:8080` y `127.0.0.1:3307` (rec. 2); `printenv DB_ROOT_PASSWORD` en el contenedor de la API no devuelve nada (rec. 3); MySQL `healthy` con el nuevo healthcheck (rec. 7); 8 de 8 pruebas en verde con `docker compose run --rm tests`.

@@ -2,6 +2,8 @@ Reservation Api
  [x] Reserva correcta descuenta stock
  [x] Stock insuficiente se rechaza sin modificar datos
  [x] Mismo request id devuelve la misma reserva sin descontar de nuevo
+ [x] Request id con salto de linea final se rechaza
+ [x] Solo acepta json de tamano acotado sin revelar version
  [x] Concurrencia solo una reserva confirmada con stock uno
  [x] Concurrencia mismo request id crea una sola reserva
 

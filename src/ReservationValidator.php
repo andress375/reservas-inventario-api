@@ -10,7 +10,7 @@ namespace App;
  */
 final class ReservationValidator
 {
-    private const REQUEST_ID_PATTERN = '/^[A-Za-z0-9_-]{1,64}$/';
+    private const REQUEST_ID_PATTERN = '/^[A-Za-z0-9_-]{1,64}\z/'; // \z: fin exacto ($ aceptaría un salto de línea final)
 
     /**
      * @return array<string, string> Errores por campo; vacío si la solicitud es válida.

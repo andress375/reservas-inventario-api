@@ -2,16 +2,43 @@ services:
   app:
     build: ./docker/php
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+    # Solo las credenciales de la aplicación: la clave de root no entra a este contenedor.
     environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
       PHP_CLI_SERVER_WORKERS: 4
     volumes:
       - ./:/app
-    env_file: .env
     depends_on:
       db:
         condition: service_healthy
     command: ["php", "-S", "0.0.0.0:8080", "-t", "public"]
+
+  # Pruebas automatizadas: único servicio que recibe la clave de root (para preparar datos).
+  # No se inicia con "docker compose up"; se ejecuta con "docker compose run --rm tests".
+  tests:
+    build: ./docker/php
+    profiles: ["tests"]
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      API_URL: http://app:8080
+    volumes:
+      - ./:/app
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+    command: ["vendor/bin/phpunit", "--testdox"]
 
   db:
     image: mysql:8.4
@@ -21,12 +48,13 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./database:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      # La clave viaja en una variable de entorno, no como argumento visible en la lista de procesos.
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -uroot"]
       interval: 5s
       timeout: 5s
       retries: 20

@@ -12,7 +12,7 @@ Las respuestas de la IA no se copian completas; solo se resume qué se hizo con 
 |---|---|---|
 | P1 | Contexto y análisis (sin código) | ✅ |
 | P2 | Base de datos | ✅ |
-| P3 | Lógica de reserva + endpoint | ⏳ |
+| P3 | Lógica de reserva + endpoint | ✅ |
 | P4 | Pruebas (incluida concurrencia) | ⏳ |
 | P5 | Auditoría crítica (Punto 9) | ⏳ |
 | P6 | Correcciones precisas | ⏳ |
@@ -100,10 +100,40 @@ Formato: el SQL completo y luego los puntos 1 a 3. Máximo 1 página fuera del S
 ## P3 · Lógica de reserva + endpoint
 
 ```text
-(pendiente)
+Continuamos con las reglas de la sesión. El contrato es SPEC.md (secciones 2, 4 y 5); sigue el "Flujo de una reserva" paso a paso, sin cambiar su orden.
+
+Tarea:
+Implementa el endpoint POST /reservations.
+
+Te autorizo a crear:
+- public/index.php (único punto de entrada).
+- Hasta 4 archivos en src/ (por ejemplo: conexión, validación, servicio de reserva y respuestas JSON).
+
+Si necesitas cambiar composer.json o docker-compose.yml, muéstrame solo las líneas que cambian y espera mi aprobación.
+
+Requisitos:
+- declare(strict_types=1) en todos los archivos.
+- PDO con ERRMODE_EXCEPTION, EMULATE_PREPARES en false y modo estricto de MySQL activado al conectar. Credenciales solo desde variables de entorno.
+- Validación estricta de tipos según SPEC.md sección 4.
+- Respuestas y códigos HTTP exactamente como la tabla de SPEC.md sección 4.
+- En errores 500, no expongas detalles internos al cliente; regístralos en el log del contenedor.
+- No implementes pruebas automatizadas todavía.
+
+Formato de respuesta:
+1. Árbol de archivos con la responsabilidad de cada uno (una línea por archivo).
+2. El código.
+3. La forma más simple de probar manualmente cada caso de la tabla de SPEC.md sección 4 desde PowerShell 5.1, mostrando el código HTTP y el cuerpo de la respuesta también en los errores. No uses comillas dobles anidadas dentro de comandos de Docker.
+
+Máximo 1 página de explicación fuera del código.
 ```
 
-**Qué hice con la respuesta:** (pendiente)
+**Qué hice con la respuesta:**
+
+- Acepté los 5 archivos (`public/index.php` y 4 clases en `src/`) y los cambios propuestos como diff en `composer.json` (autoload PSR-4) y `docker-compose.yml` (servidor PHP con 4 workers en el puerto 8080).
+- Probé manualmente los 11 casos de la tabla de SPEC.md sección 4 en mi entorno: todos devolvieron el código esperado (201, 200, 409, 400, 422 ×3, 404, 409, 405, 404).
+- **Hallazgo de la IA aceptado:** dos solicitudes con el mismo `request_id` y la última unidad podían devolver 409 por stock en vez de la reserva existente. Se agregó una nueva búsqueda del `request_id` antes de rechazar (verificado con 10 solicitudes idénticas en paralelo: 1 × 201 + 9 × 200).
+- **Inconsistencia detectada por la IA y corregida:** `composer.json` declaraba PHP 8.2, pero PHPUnit 12.5 exige 8.3.
+- **Error de la IA detectado:** la función de pruebas manuales asumía PowerShell 5.1; en la terminal de VS Code (PowerShell 7) falló al mostrar las respuestas de error. Se corrigió para funcionar en ambas versiones.
 
 ---
 

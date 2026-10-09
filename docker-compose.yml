@@ -1,13 +1,17 @@
 services:
   app:
     build: ./docker/php
+    ports:
+      - "8080:8080"
+    environment:
+      PHP_CLI_SERVER_WORKERS: 4
     volumes:
       - ./:/app
     env_file: .env
     depends_on:
       db:
         condition: service_healthy
-    command: ["sleep", "infinity"]
+    command: ["php", "-S", "0.0.0.0:8080", "-t", "public"]
 
   db:
     image: mysql:8.4

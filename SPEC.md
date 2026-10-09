@@ -14,7 +14,7 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 - PHP 8.3 (contenedor `app`), MySQL 8.4 LTS (contenedor `db`, puerto 3307 en el host).
 - Composer y PHPUnit dentro del contenedor.
 - **PHP puro, sin framework.** Solo PDO. Un único punto de entrada: `public/index.php`.
-- Servidor integrado de PHP con `PHP_CLI_SERVER_WORKERS` para atender solicitudes en paralelo.
+- Servidor integrado de PHP con `PHP_CLI_SERVER_WORKERS` (4) para atender solicitudes en paralelo. La API queda en `http://localhost:8080`.
 
 ## 3. Modelo de datos
 
@@ -46,7 +46,7 @@ y dos solicitudes simultáneas por la última unidad no la obtengan ambas.
 Validación de entrada:
 
 - `request_id`: texto de 1 a 64 caracteres, solo letras, números, `-` y `_`.
-- `product_id` y `quantity`: enteros JSON (no se aceptan `"3"`, `3.5` ni `true`). `quantity > 0`, sin tope.
+- `product_id` y `quantity`: enteros JSON (no se aceptan `"3"`, `3.5` ni `true`). `product_id > 0` y `quantity > 0` (si no, 422). Sin tope de cantidad.
 
 | Caso | HTTP | Cuerpo |
 |---|---|---|
@@ -78,7 +78,7 @@ Formato de error: `{"error": {"code": "...", "message": "...", "fields": {...}}}
 2. Buscar la reserva por `request_id`. Si existe: mismos datos → 200 con la respuesta guardada; datos distintos → 409.
 3. `BEGIN`.
 4. `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`.
-5. Si afectó 0 filas: `ROLLBACK` y consultar si el producto existe → 404 o 409.
+5. Si afectó 0 filas: `ROLLBACK`. Buscar de nuevo el `request_id` (pudo confirmarse mientras esta solicitud esperaba el bloqueo); si existe, responder como en el paso 2. Si no, consultar si el producto existe → 404 o 409.
 6. Leer el stock resultante e `INSERT` de la reserva con `remaining_stock`.
 7. `COMMIT` → 201.
 8. Si el `INSERT` falla por duplicado (error 1062): `ROLLBACK` (se revierte el descuento) y repetir el paso 2 **fuera** de la transacción.
